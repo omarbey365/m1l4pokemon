@@ -1,84 +1,111 @@
-import asyncio
+import random
+from datetime import datetime, timedelta
 
-import aiohttp  # Eşzamansız HTTP istekleri için bir kütüphane
-import random  # Rastgele sayı üretmek için bir kütüphane
 
 class Pokemon:
-    pokemons = {}
-    # Nesne başlatma (kurucu)
-    def __init__(self, pokemon_trainer):
-        self.pokemon_trainer = pokemon_trainer
-        self.pokemon_number = random.randint(1, 1000)
-        self.name = None
-        self.hp =random.randint(120, 330)
-        self.power = random.randint(35, 80)
-        
-        
-        if pokemon_trainer not in Pokemon.pokemons:
-            Pokemon.pokemons[pokemon_trainer] = self
-        else:
-            self = Pokemon.pokemons[pokemon_trainer]
 
-    async def get_name(self):
-        # PokeAPI aracılığıyla bir pokémonun adını almak için asenktron metot
-        url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'  # İstek için URL API
-        async with aiohttp.ClientSession() as session:  #  HTTP oturumu açma
-            async with session.get(url) as response:  # GET isteği gönderme
-                if response.status == 200:
-                    data = await response.json()  # JSON yanıtının alınması ve çözümlenmesi
-                    return data['forms'][0]['name']  #  Pokémon adını döndürme
-                else:
-                    return "Pikachu"  # İstek başarısız olursa varsayılan adı döndürür
+    pokemons = {}
+
+    def __init__(self, trainer):
+
+        self.trainer = trainer
+        self.name = random.choice(["Pikachu", "Charmander", "Bulbasaur", "Squirtle"])
+        self.hp = 100
+        self.power = random.randint(10, 20)
+
+        # son beslenme zamanı
+        self.last_feed_time = datetime.min
+
+        Pokemon.pokemons[trainer] = self
+
 
     async def info(self):
-        # Pokémon hakkında bilgi döndüren bir metot
-        if not self.name:
-            self.name = await self.get_name()  # Henüz yüklenmemişse bir adın geri alınması
-        return f"Pokémonunuzun ismi: {self.name}, hp: {self.hp}, power: {self.power}"  # Pokémon adını içeren dizeyi döndürür
+
+        return f"""
+Pokemon: {self.name}
+Trainer: {self.trainer}
+HP: {self.hp}
+Power: {self.power}
+"""
+
 
     async def show_img(self):
-        # PokeAPI aracılığıyla bir pokémon görüntüsünün URL'sini almak için asenktron metot
-        url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'  # İstek için URL API
-        async with aiohttp.ClientSession() as session:  #  HTTP oturumu açma
-            async with session.get(url) as response:  # GET isteği gönderme
-                if response.status == 200:
-                    data = await response.json()  # JSON yanıtının alınması ve çözümlenmesi
-                    img = data['sprites']['front_default']  # Pokémon görüntüsünün URL'sini alma
-                    return img  # Görüntü URL'sini döndürme
-                else:
-                    return None  # İstek başarısız olursa None döndürür
-    async def attack(self, enemy):
-        if isinstance(enemy, Wizard):
-            change = random.randint(1, 5)
-            if change == 1:
-                return "Sihirbaz Pokémon, savaşta bir kalkan kullanıldı!"
 
-        if enemy.hp > self.power:
-            enemy.hp -= self.power
-            return f"Pokémon eğitmeni @{self.pokemon_trainer} @{enemy.pokemon_trainer}'ne saldırdı\n@{enemy.pokemon_trainer}'nin sağlık durumu {enemy.hp}"
-        else:
+        return f"https://img.pokemondb.net/artwork/{self.name.lower()}.jpg"
+
+
+    async def attack(self, enemy):
+
+        damage = random.randint(5, self.power)
+
+        enemy.hp -= damage
+
+        if enemy.hp <= 0:
             enemy.hp = 0
-            return f"Pokémon eğitmeni @{self.pokemon_trainer} @{enemy.pokemon_trainer}'ni yendi!"
+            return f"{self.trainer}'ın {self.name} pokemonu {enemy.trainer}'ın pokemonunu yendi!"
+
+        return f"{self.trainer}'ın {self.name} pokemonu {enemy.trainer}'ın pokemonuna {damage} hasar verdi!"
+
+
+    async def feed(self):
+
+        now = datetime.now()
+        interval = timedelta(seconds=20)
+
+        if now - self.last_feed_time >= interval:
+
+            self.hp += 10
+            self.last_feed_time = now
+
+            return f"{self.name} beslendi! Yeni HP: {self.hp}"
+
+        else:
+
+            next_time = self.last_feed_time + interval
+            wait = int((next_time - now).total_seconds())
+
+            return f"{self.name} henüz aç değil. {wait} saniye sonra tekrar besleyebilirsin."
+
+
+class Fighter(Pokemon):
+
+    async def feed(self):
+
+        now = datetime.now()
+        interval = timedelta(seconds=20)
+
+        if now - self.last_feed_time >= interval:
+
+            self.hp += 20   # Fighter daha fazla iyileşir
+            self.last_feed_time = now
+
+            return f"{self.name} güçlü bir şekilde beslendi! Yeni HP: {self.hp}"
+
+        else:
+
+            next_time = self.last_feed_time + interval
+            wait = int((next_time - now).total_seconds())
+
+            return f"{self.name} henüz tekrar beslenemez. {wait} saniye bekle."
 
 
 class Wizard(Pokemon):
-    pass
 
-class Fighter(Pokemon):
-    async def attack(self, enemy):
-        super_power = random.randint(5, 25)
-        self.power += super_power
-        result = await super().attack(enemy)
-        self .power -= super_power
-        return result +f"\nDövüşçü Pokémon süper saldırı kullandı. Eklenen güç: {super_power}"
-    
-async def main():
-    
-    wizard = Wizard("username1")
-    fighter = Fighter("username2")
-    print(await wizard.info())
-    print()
-    print(await fighter.info())
-    print()
-    print(await fighter.attack(wizard))
-asyncio.run(main())
+    async def feed(self):
+
+        now = datetime.now()
+        interval = timedelta(seconds=10)   # Wizard daha hızlı beslenir
+
+        if now - self.last_feed_time >= interval:
+
+            self.hp += 10
+            self.last_feed_time = now
+
+            return f"{self.name} sihirli şekilde beslendi! Yeni HP: {self.hp}"
+
+        else:
+
+            next_time = self.last_feed_time + interval
+            wait = int((next_time - now).total_seconds())
+
+            return f"{self.name} henüz tekrar beslenemez. {wait} saniye bekle."
